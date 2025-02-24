@@ -1,5 +1,6 @@
 from playwright.sync_api import sync_playwright, TimeoutError
 from .state import State
+from playwright._impl._errors import TargetClosedError
 
 
 class Follower:
@@ -9,7 +10,12 @@ class Follower:
         self._auth_token = auth_token
 
     def stop(self) -> None:
-        self._browser.close()
+        try:
+            self._ctx.close()
+            self._browser.close()
+
+        except Exception:
+            pass
 
     def start(self) -> None:
         self._browser = (
@@ -32,7 +38,12 @@ class Follower:
         self._page = self._ctx.new_page()
         self._page.set_default_navigation_timeout(100000)
         State.update_state_line("Waiting for x.com ...")
-        self._page.goto("https://x.com/home")
+
+    def goto_homepage(self) -> None:
+        try:
+            self._page.goto("https://x.com/home")
+        except TargetClosedError:
+            pass
 
     def follow_user(self, username: str) -> None:
         State.update_state_line(f"Opening {username} profile ...")

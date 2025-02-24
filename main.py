@@ -2,6 +2,81 @@ import time
 import streamlit as st
 from app.follower import Follower
 from app.state import State
+import json
+from streamlit_cookies_manager import CookieManager  # type: ignore
+
+# ================= LOGIN PAGE WITH COOKIES ================= #
+
+# Define the correct password
+CORRECT_PASSWORD = "MGWW-Bart010"
+
+# Initialize Cookies Manager
+cookies = CookieManager()
+
+# Ensure session state variables are initialized
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "users_list" not in st.session_state:
+    st.session_state["users_list"] = []  # ✅ Initialize as a list
+
+# Ensure bot state variables are initialized
+if not hasattr(State, "bot_is_running"):
+    State.bot_is_running = False
+
+if not hasattr(State, "users_list"):
+    State.users_list = []
+
+# Wait for cookies to be ready before using them
+if not cookies.ready():
+    st.warning("Waiting for cookies to be ready...")
+    time.sleep(1)
+    st.rerun()
+
+# Load authentication status from cookies
+auth_cookie = cookies.get("auth_status")
+if auth_cookie:
+    try:
+        st.session_state.authenticated = json.loads(auth_cookie)
+    except json.JSONDecodeError:
+        st.session_state.authenticated = False
+else:
+    st.session_state.authenticated = False
+
+# Show login page if not authenticated
+if not st.session_state.authenticated:
+    st.title("🔒 Login")
+    password = st.text_input("Enter Password:", type="password")
+
+    if st.button("Login"):
+        if password == CORRECT_PASSWORD:
+            st.session_state.authenticated = True
+            cookies["auth_status"] = json.dumps(True)
+            cookies.save()
+            st.success("✅ Login successful! Redirecting...")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.error("❌ Incorrect password. Try again.")
+
+    st.stop()
+
+
+# ================= ADD LOGOUT OPTION ================= #
+def logout() -> None:
+    cookies["auth_status"] = json.dumps(False)
+    cookies.save()
+    st.session_state.authenticated = False
+    st.session_state.pop("authenticated", None)  # ✅ Only remove authentication key
+    st.success("✅ Logged out successfully. Redirecting to login...")
+    time.sleep(1)
+    st.rerun()
+
+
+st.sidebar.button("🚪 Logout", on_click=logout)
+
+
+# ================= MAIN APPLICATION ================= #
 
 
 header_text = "X Follower Bot"
@@ -94,6 +169,7 @@ def stop_bot() -> None:
     State.update_state_line("No running")
     if State.follower:
         State.follower.stop()
+        State.follower = None
     print("Bot stopped!")
 
 
@@ -109,6 +185,7 @@ if State.bot_is_running:
 
         for user in State.users_list:
             State.follower.follow_user(user)
+
             State.update_state_line(
                 f"Waiting for {total_delay} seconds before following next user ..."
             )
